@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, ChevronDown, User } from "lucide-react";
+import { Menu, X, ChevronDown, User, LayoutDashboard, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -30,6 +32,7 @@ const navigation = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user, signOut, isAdmin } = useAuth();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -91,15 +94,49 @@ export function Header() {
 
         {/* CTA Buttons */}
         <div className="hidden lg:flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/auth" className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Login
-            </Link>
-          </Button>
-          <Button className="bg-gradient-accent hover:opacity-90" asChild>
-            <Link to="/quote">Get Quote</Link>
-          </Button>
+          {user ? (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                      <User className="w-4 h-4 text-accent" />
+                    </div>
+                    <span className="max-w-32 truncate">{user.email}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem asChild>
+                    <Link to={isAdmin ? "/admin" : "/dashboard"} className="cursor-pointer">
+                      <LayoutDashboard className="w-4 h-4 mr-2" />
+                      {isAdmin ? "Admin Dashboard" : "Dashboard"}
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button className="bg-gradient-accent hover:opacity-90" asChild>
+                <Link to="/quote">Get Quote</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/auth" className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Login
+                </Link>
+              </Button>
+              <Button className="bg-gradient-accent hover:opacity-90" asChild>
+                <Link to="/quote">Get Quote</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -150,16 +187,38 @@ export function Header() {
               </div>
             ))}
             <div className="pt-4 space-y-2 border-t border-border">
-              <Button variant="outline" className="w-full" asChild>
-                <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
-                  Login
-                </Link>
-              </Button>
-              <Button className="w-full bg-gradient-accent" asChild>
-                <Link to="/quote" onClick={() => setMobileMenuOpen(false)}>
-                  Get Quote
-                </Link>
-              </Button>
+              {user ? (
+                <>
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to={isAdmin ? "/admin" : "/dashboard"} onClick={() => setMobileMenuOpen(false)}>
+                      {isAdmin ? "Admin Dashboard" : "Dashboard"}
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-destructive"
+                    onClick={() => {
+                      signOut();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                      Login
+                    </Link>
+                  </Button>
+                  <Button className="w-full bg-gradient-accent" asChild>
+                    <Link to="/quote" onClick={() => setMobileMenuOpen(false)}>
+                      Get Quote
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
