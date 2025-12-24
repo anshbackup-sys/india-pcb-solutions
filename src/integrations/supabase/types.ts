@@ -14,16 +14,243 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      orders: {
+        Row: {
+          admin_notes: string | null
+          assembly_cost: number | null
+          assembly_required: boolean | null
+          assembly_type: string | null
+          board_height: number | null
+          board_thickness: string | null
+          board_type: string | null
+          board_width: number | null
+          copper_weight: string | null
+          created_at: string
+          customer_notes: string | null
+          fabrication_cost: number | null
+          id: string
+          layers: number | null
+          lead_time_days: number | null
+          order_number: string
+          quantity: number | null
+          quote_approved_at: string | null
+          quote_sent_at: string | null
+          silkscreen_color: string | null
+          solder_mask_color: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          surface_finish: string | null
+          testing_cost: number | null
+          testing_required: boolean | null
+          testing_type: string[] | null
+          total_cost: number | null
+          tracking_number: string | null
+          tracking_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          assembly_cost?: number | null
+          assembly_required?: boolean | null
+          assembly_type?: string | null
+          board_height?: number | null
+          board_thickness?: string | null
+          board_type?: string | null
+          board_width?: number | null
+          copper_weight?: string | null
+          created_at?: string
+          customer_notes?: string | null
+          fabrication_cost?: number | null
+          id?: string
+          layers?: number | null
+          lead_time_days?: number | null
+          order_number: string
+          quantity?: number | null
+          quote_approved_at?: string | null
+          quote_sent_at?: string | null
+          silkscreen_color?: string | null
+          solder_mask_color?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          surface_finish?: string | null
+          testing_cost?: number | null
+          testing_required?: boolean | null
+          testing_type?: string[] | null
+          total_cost?: number | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          assembly_cost?: number | null
+          assembly_required?: boolean | null
+          assembly_type?: string | null
+          board_height?: number | null
+          board_thickness?: string | null
+          board_type?: string | null
+          board_width?: number | null
+          copper_weight?: string | null
+          created_at?: string
+          customer_notes?: string | null
+          fabrication_cost?: number | null
+          id?: string
+          layers?: number | null
+          lead_time_days?: number | null
+          order_number?: string
+          quantity?: number | null
+          quote_approved_at?: string | null
+          quote_sent_at?: string | null
+          silkscreen_color?: string | null
+          solder_mask_color?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          surface_finish?: string | null
+          testing_cost?: number | null
+          testing_required?: boolean | null
+          testing_type?: string[] | null
+          total_cost?: number | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_name: string | null
+          contact_name: string | null
+          created_at: string
+          email: string
+          gst_number: string | null
+          id: string
+          phone: string | null
+          pincode: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email: string
+          gst_number?: string | null
+          id?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string
+          gst_number?: string | null
+          id?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      uploaded_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string
+          id: string
+          order_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          order_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          order_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uploaded_files_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "customer"
+      order_status:
+        | "quote_requested"
+        | "quote_sent"
+        | "quote_approved"
+        | "in_fabrication"
+        | "in_assembly"
+        | "testing"
+        | "dispatched"
+        | "delivered"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +377,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "customer"],
+      order_status: [
+        "quote_requested",
+        "quote_sent",
+        "quote_approved",
+        "in_fabrication",
+        "in_assembly",
+        "testing",
+        "dispatched",
+        "delivered",
+        "cancelled",
+      ],
+    },
   },
 } as const
