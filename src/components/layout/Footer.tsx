@@ -35,7 +35,7 @@ export function Footer() {
                 <span className="text-xl font-bold text-accent-foreground">B</span>
               </div>
               <span className="text-xl font-bold">
-                Bharat<span className="text-accent">PCB</span>
+                Bharat<span className="text-accent">PCBs</span>
               </span>
             </Link>
             <p className="text-primary-foreground/70 mb-6 max-w-sm">
@@ -43,11 +43,11 @@ export function Footer() {
             </p>
             <div className="space-y-3">
               <a
-                href="mailto:info@bharatpcb.com"
+                href="mailto:info@bharatpcbs.com"
                 className="flex items-center gap-3 text-primary-foreground/70 hover:text-accent transition-colors"
               >
                 <Mail className="w-5 h-5" />
-                info@bharatpcb.com
+                info@bharatpcbs.com
               </a>
               <a
                 href="tel:+919876543210"
@@ -118,7 +118,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-primary-foreground/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-primary-foreground/50 text-sm">
-            © {new Date().getFullYear()} BharatPCB. All rights reserved.
+            © {new Date().getFullYear()} BharatPCBs. All rights reserved.
           </p>
           <div className="flex items-center gap-2">
             <span className="text-sm text-primary-foreground/50">Proudly</span>

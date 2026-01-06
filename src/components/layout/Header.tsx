@@ -43,7 +43,7 @@ export function Header() {
             <span className="text-xl font-bold text-accent-foreground">B</span>
           </div>
           <span className="text-xl font-bold text-foreground">
-            Bharat<span className="text-accent">PCB</span>
+            Bharat<span className="text-accent">PCBs</span>
           </span>
         </Link>
 
