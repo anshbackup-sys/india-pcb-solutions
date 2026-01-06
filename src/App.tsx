@@ -8,6 +8,14 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Quote from "./pages/Quote";
+import Services from "./pages/Services";
+import Quality from "./pages/Quality";
+import Contact from "./pages/Contact";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import About from "./pages/About";
+import Industries from "./pages/Industries";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +31,14 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/quote" element={<Quote />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/quality" element={<Quality />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/industries" element={<Industries />} />
             
             {/* Protected Routes */}
             <Route
