@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { FileUpload } from "@/components/quote/FileUpload";
-import { PCBConfigForm, PCBConfig } from "@/components/quote/PCBConfigForm";
+import { AdvancedPCBConfigForm, AdvancedPCBConfig } from "@/components/quote/AdvancedPCBConfig";
+import { GerberPreview } from "@/components/quote/GerberPreview";
+import { PCBPriceCalculator } from "@/components/quote/PCBPriceCalculator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Settings, User, Shield, Loader2 } from "lucide-react";
+import { Upload, User, Shield, Loader2, Calculator } from "lucide-react";
 
 export default function Quote() {
   const { user } = useAuth();
@@ -20,6 +22,7 @@ export default function Quote() {
   
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pcbConfig, setPcbConfig] = useState<Partial<AdvancedPCBConfig>>({});
   const [contactInfo, setContactInfo] = useState({
     name: "",
     email: "",
@@ -32,7 +35,11 @@ export default function Quote() {
     setFiles(newFiles);
   };
 
-  const handleSubmit = async (pcbConfig: PCBConfig) => {
+  const handleConfigChange = (config: Partial<AdvancedPCBConfig>) => {
+    setPcbConfig(config);
+  };
+
+  const handleSubmit = async (config: AdvancedPCBConfig) => {
     if (files.length === 0) {
       toast({
         title: "No files uploaded",
@@ -63,39 +70,55 @@ export default function Quote() {
     setIsSubmitting(true);
 
     try {
-      // Parse PCB config values
-      const boardWidth = parseFloat(pcbConfig.boardWidth) || null;
-      const boardHeight = parseFloat(pcbConfig.boardHeight) || null;
-      const quantity = parseInt(pcbConfig.quantity) || 10;
-      const layers = parseInt(pcbConfig.layers) || 2;
-
-      // Generate order number
-      const orderNumber = `BPCB-${Date.now().toString(36).toUpperCase()}`;
+      const boardWidth = parseFloat(config.boardWidth) || null;
+      const boardHeight = parseFloat(config.boardHeight) || null;
+      const quantity = parseInt(config.quantity) || 10;
+      const layers = parseInt(config.layers) || 2;
 
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
-          order_number: orderNumber,
-          user_id: user?.id || "00000000-0000-0000-0000-000000000000", // Guest placeholder
+          user_id: user?.id || "00000000-0000-0000-0000-000000000000",
           status: "quote_requested" as const,
           board_width: boardWidth,
           board_height: boardHeight,
           quantity: quantity,
           layers: layers,
-          board_thickness: pcbConfig.thickness,
-          board_type: pcbConfig.material,
-          surface_finish: pcbConfig.surfaceFinish,
-          copper_weight: pcbConfig.copperWeight,
-          solder_mask_color: pcbConfig.solderMask,
-          silkscreen_color: pcbConfig.silkscreen,
-          customer_notes: `Lead Time: ${pcbConfig.leadTime}${pcbConfig.specialRequirements ? `\nSpecial Requirements: ${pcbConfig.specialRequirements}` : ""}${!user ? `\nGuest Contact: ${contactInfo.name}, ${contactInfo.email}, ${contactInfo.phone || "N/A"}, ${contactInfo.company || "N/A"}` : ""}`,
+          board_thickness: config.thickness,
+          board_type: config.pcbType,
+          material: config.material,
+          surface_finish: config.surfaceFinish,
+          copper_weight: config.copperWeight,
+          inner_copper_weight: config.innerCopperWeight,
+          solder_mask_color: config.solderMask,
+          silkscreen_color: config.silkscreen,
+          min_track_spacing: config.minTrackSpacing,
+          min_hole_size: config.minHoleSize,
+          via_process: config.viaProcess,
+          impedance_control: config.impedanceControl,
+          castellated_holes: config.castellatedHoles,
+          edge_plating: config.edgePlating,
+          gold_fingers: config.goldFingers,
+          gold_finger_length: config.goldFingerLength,
+          gold_finger_chamfer: config.goldFingerChamfer,
+          panelization_type: config.panelizationType,
+          ul_marking: config.ulMarking,
+          assembly_sides: config.assemblySides,
+          component_sourcing: config.componentSourcing,
+          stencil_type: config.stencilType,
+          xray_inspection: config.xrayInspection,
+          conformal_coating: config.conformalCoating,
+          ipc_class: config.ipcClass,
+          lead_time_type: config.leadTimeType,
+          panel_qty: parseInt(config.panelQty) || 1,
+          different_designs: parseInt(config.differentDesigns) || 1,
+          customer_notes: `${config.specialRequirements || ""}${!user ? `\nGuest: ${contactInfo.name}, ${contactInfo.email}, ${contactInfo.phone || "N/A"}, ${contactInfo.company || "N/A"}` : ""}`,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Upload files to storage
       for (const file of files) {
         const filePath = `${order.id}/${file.name}`;
         const { error: uploadError } = await supabase.storage
@@ -107,7 +130,6 @@ export default function Quote() {
           continue;
         }
 
-        // Record file in database - need user_id
         await supabase.from("uploaded_files").insert({
           user_id: user?.id || "00000000-0000-0000-0000-000000000000",
           order_id: order.id,
@@ -149,12 +171,12 @@ export default function Quote() {
               Get Your PCB Quote
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Upload your Gerber files, configure specifications, and receive a detailed quote from our engineering team within 24 hours.
+              Industry-leading specifications with real-time pricing. Upload your Gerber files, configure every detail, and get an instant estimate.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Left Column - File Upload & Contact */}
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Left Column - File Upload & Preview */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -167,6 +189,14 @@ export default function Quote() {
                   <FileUpload onFilesChange={handleFilesChange} />
                 </CardContent>
               </Card>
+
+              <GerberPreview 
+                files={files}
+                boardWidth={parseFloat(pcbConfig.boardWidth || "100")}
+                boardHeight={parseFloat(pcbConfig.boardHeight || "100")}
+                layers={parseInt(pcbConfig.layers || "2")}
+                solderMaskColor={pcbConfig.solderMask}
+              />
 
               {!user && (
                 <Card>
@@ -183,9 +213,7 @@ export default function Quote() {
                         <Input
                           id="name"
                           value={contactInfo.name}
-                          onChange={(e) =>
-                            setContactInfo({ ...contactInfo, name: e.target.value })
-                          }
+                          onChange={(e) => setContactInfo({ ...contactInfo, name: e.target.value })}
                           placeholder="Your name"
                         />
                       </div>
@@ -195,9 +223,7 @@ export default function Quote() {
                           id="email"
                           type="email"
                           value={contactInfo.email}
-                          onChange={(e) =>
-                            setContactInfo({ ...contactInfo, email: e.target.value })
-                          }
+                          onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
                           placeholder="your@email.com"
                         />
                       </div>
@@ -208,9 +234,7 @@ export default function Quote() {
                         <Input
                           id="phone"
                           value={contactInfo.phone}
-                          onChange={(e) =>
-                            setContactInfo({ ...contactInfo, phone: e.target.value })
-                          }
+                          onChange={(e) => setContactInfo({ ...contactInfo, phone: e.target.value })}
                           placeholder="+91 98765 43210"
                         />
                       </div>
@@ -219,19 +243,14 @@ export default function Quote() {
                         <Input
                           id="company"
                           value={contactInfo.company}
-                          onChange={(e) =>
-                            setContactInfo({ ...contactInfo, company: e.target.value })
-                          }
+                          onChange={(e) => setContactInfo({ ...contactInfo, company: e.target.value })}
                           placeholder="Company name"
                         />
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Already have an account?{" "}
-                      <a href="/auth" className="text-accent hover:underline">
-                        Sign in
-                      </a>{" "}
-                      for faster checkout.
+                      <a href="/auth" className="text-accent hover:underline">Sign in</a>
                     </p>
                   </CardContent>
                 </Card>
@@ -253,27 +272,29 @@ export default function Quote() {
                     />
                     <label htmlFor="nda" className="text-sm text-muted-foreground leading-relaxed">
                       I agree to the{" "}
-                      <a href="/privacy" className="text-accent hover:underline">
-                        NDA & Privacy Agreement
-                      </a>
-                      . BharatPCBs guarantees complete confidentiality of all uploaded files and design data. We never share your intellectual property with third parties.
+                      <a href="/privacy" className="text-accent hover:underline">NDA & Privacy Agreement</a>.
+                      BharatPCBs guarantees complete confidentiality of all uploaded files and design data.
                     </label>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Right Column - PCB Configuration */}
+            {/* Middle Column - PCB Configuration */}
             <div>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-accent" />
+                    <Calculator className="w-5 h-5 text-accent" />
                     PCB Specifications
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <PCBConfigForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+                  <AdvancedPCBConfigForm 
+                    onSubmit={handleSubmit} 
+                    onChange={handleConfigChange}
+                    isSubmitting={isSubmitting} 
+                  />
                   <Button
                     type="submit"
                     form="pcb-config-form"
@@ -292,6 +313,11 @@ export default function Quote() {
                   </Button>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Right Column - Price Calculator */}
+            <div>
+              <PCBPriceCalculator config={pcbConfig} />
             </div>
           </div>
         </div>
