@@ -102,9 +102,13 @@ export default function Quote() {
         return;
       }
 
+      // Generate a temporary order number - the database trigger will replace it
+      const tempOrderNumber = `BPCB-${Date.now()}`;
+      
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert([{
+          order_number: tempOrderNumber,
           user_id: user.id,
           status: "quote_requested" as const,
           board_width: boardWidth,
