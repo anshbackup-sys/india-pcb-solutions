@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { 
   Layers, 
   ZoomIn, 
@@ -13,9 +14,10 @@ import {
   EyeOff,
   AlertTriangle,
   CheckCircle2,
-  FileText,
   Maximize2,
-  Grid3X3
+  Grid3X3,
+  Loader2,
+  FileCode
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,30 @@ interface LayerInfo {
   visible: boolean;
   color: string;
   icon: string;
+  content?: string;
+  parsed?: ParsedGerberData;
+}
+
+interface ParsedGerberData {
+  commands: GerberCommand[];
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  apertures: Map<string, ApertureDefinition>;
+}
+
+interface GerberCommand {
+  type: 'move' | 'draw' | 'flash' | 'arc' | 'region';
+  x: number;
+  y: number;
+  x2?: number;
+  y2?: number;
+  aperture?: string;
+}
+
+interface ApertureDefinition {
+  shape: 'circle' | 'rectangle' | 'obround';
+  diameter?: number;
+  width?: number;
+  height?: number;
 }
 
 const SOLDER_MASK_COLORS: Record<string, { bg: string; border: string }> = {
@@ -61,6 +87,73 @@ const LAYER_COLORS: Record<string, string> = {
   "Unknown": "#888888",
 };
 
+// Simple Gerber parser for visualization
+function parseGerberContent(content: string): ParsedGerberData {
+  const commands: GerberCommand[] = [];
+  const apertures = new Map<string, ApertureDefinition>();
+  let currentAperture = '';
+  let currentX = 0;
+  let currentY = 0;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  
+  const lines = content.split('\n');
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Parse aperture definitions
+    const apertureMatch = trimmed.match(/%ADD(\d+)([CRO]),([^%]+)%/);
+    if (apertureMatch) {
+      const [, id, shape, params] = apertureMatch;
+      const parts = params.split('X').map(p => parseFloat(p));
+      if (shape === 'C') {
+        apertures.set(id, { shape: 'circle', diameter: parts[0] });
+      } else if (shape === 'R') {
+        apertures.set(id, { shape: 'rectangle', width: parts[0], height: parts[1] || parts[0] });
+      }
+      continue;
+    }
+    
+    // Select aperture
+    const selectMatch = trimmed.match(/D(\d+)\*/);
+    if (selectMatch && parseInt(selectMatch[1]) >= 10) {
+      currentAperture = selectMatch[1];
+      continue;
+    }
+    
+    // Parse coordinates
+    const coordMatch = trimmed.match(/X(-?\d+)Y(-?\d+)D(\d+)\*/);
+    if (coordMatch) {
+      const x = parseInt(coordMatch[1]) / 10000; // Convert to mm (assuming 10000 units per mm)
+      const y = parseInt(coordMatch[2]) / 10000;
+      const d = parseInt(coordMatch[3]);
+      
+      if (d === 1) { // Draw
+        commands.push({ type: 'draw', x: currentX, y: currentY, x2: x, y2: y, aperture: currentAperture });
+      } else if (d === 2) { // Move
+        commands.push({ type: 'move', x, y });
+      } else if (d === 3) { // Flash
+        commands.push({ type: 'flash', x, y, aperture: currentAperture });
+      }
+      
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+      
+      currentX = x;
+      currentY = y;
+    }
+  }
+  
+  // Set reasonable defaults if no valid coordinates found
+  if (minX === Infinity) {
+    minX = 0; maxX = 100; minY = 0; maxY = 100;
+  }
+  
+  return { commands, bounds: { minX, maxX, minY, maxY }, apertures };
+}
+
 export function GerberPreview({ 
   files, 
   boardWidth = 100, 
@@ -72,59 +165,100 @@ export function GerberPreview({
   const [rotation, setRotation] = useState(0);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState("preview");
+  const [parsedLayers, setParsedLayers] = useState<LayerInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
-  const detectLayerType = (fileName: string): { type: string; color: string } => {
+  const detectLayerType = useCallback((fileName: string): { type: string; color: string } => {
     const name = fileName.toLowerCase();
     
-    if (name.includes("gtl") || (name.includes("top") && name.includes("copper")) || name.includes("f_cu")) {
+    if (name.includes("gtl") || (name.includes("top") && name.includes("copper")) || name.includes("f_cu") || name.includes("-f.cu")) {
       return { type: "Top Copper", color: LAYER_COLORS["Top Copper"] };
     }
-    if (name.includes("gbl") || (name.includes("bottom") && name.includes("copper")) || name.includes("b_cu")) {
+    if (name.includes("gbl") || (name.includes("bottom") && name.includes("copper")) || name.includes("b_cu") || name.includes("-b.cu")) {
       return { type: "Bottom Copper", color: LAYER_COLORS["Bottom Copper"] };
     }
-    if (name.includes("gts") || (name.includes("top") && name.includes("mask")) || name.includes("f_mask")) {
+    if (name.includes("gts") || (name.includes("top") && name.includes("mask")) || name.includes("f_mask") || name.includes("-f.mask")) {
       const maskColor = SOLDER_MASK_COLORS[solderMaskColor]?.bg || LAYER_COLORS["Top Solder Mask"];
       return { type: "Top Solder Mask", color: maskColor };
     }
-    if (name.includes("gbs") || (name.includes("bottom") && name.includes("mask")) || name.includes("b_mask")) {
+    if (name.includes("gbs") || (name.includes("bottom") && name.includes("mask")) || name.includes("b_mask") || name.includes("-b.mask")) {
       const maskColor = SOLDER_MASK_COLORS[solderMaskColor]?.bg || LAYER_COLORS["Bottom Solder Mask"];
       return { type: "Bottom Solder Mask", color: maskColor };
     }
-    if (name.includes("gto") || (name.includes("top") && name.includes("silk")) || name.includes("f_silks")) {
+    if (name.includes("gto") || (name.includes("top") && name.includes("silk")) || name.includes("f_silks") || name.includes("-f.silk")) {
       return { type: "Top Silkscreen", color: LAYER_COLORS["Top Silkscreen"] };
     }
-    if (name.includes("gbo") || (name.includes("bottom") && name.includes("silk")) || name.includes("b_silks")) {
+    if (name.includes("gbo") || (name.includes("bottom") && name.includes("silk")) || name.includes("b_silks") || name.includes("-b.silk")) {
       return { type: "Bottom Silkscreen", color: LAYER_COLORS["Bottom Silkscreen"] };
     }
-    if (name.includes("drl") || name.includes("drill") || name.includes("xln") || name.includes("exc")) {
+    if (name.includes("drl") || name.includes("drill") || name.includes("xln") || name.includes("exc") || name.includes(".drl")) {
       return { type: "Drill", color: LAYER_COLORS["Drill"] };
     }
-    if (name.includes("gko") || name.includes("outline") || name.includes("edge") || name.includes("gm1")) {
+    if (name.includes("gko") || name.includes("outline") || name.includes("edge") || name.includes("gm1") || name.includes("-edge")) {
       return { type: "Board Outline", color: LAYER_COLORS["Board Outline"] };
     }
     if (name.includes("gtp") || name.includes("gbp") || name.includes("paste")) {
       return { type: "Solder Paste", color: LAYER_COLORS["Solder Paste"] };
     }
-    if (name.includes("g2") || name.includes("g3") || name.includes("in1") || name.includes("in2")) {
+    if (name.includes("g2") || name.includes("g3") || name.includes("in1") || name.includes("in2") || name.includes("inner")) {
       return { type: "Inner Layer", color: LAYER_COLORS["Inner Layer"] };
     }
     
     return { type: "Unknown", color: LAYER_COLORS["Unknown"] };
-  };
+  }, [solderMaskColor]);
 
-  const detectedLayers: LayerInfo[] = useMemo(() => {
-    return files.map((file) => {
-      const { type, color } = detectLayerType(file.name);
-      return {
-        name: file.name,
-        type,
-        visible: layerVisibility[file.name] !== false,
-        color,
-        icon: type.includes("Copper") ? "⚡" : type.includes("Mask") ? "🎨" : type.includes("Silk") ? "✍️" : type.includes("Drill") ? "⚫" : type.includes("Outline") ? "📐" : "📄",
-      };
-    });
-  }, [files, layerVisibility, solderMaskColor]);
+  // Parse uploaded files
+  useEffect(() => {
+    if (files.length === 0) {
+      setParsedLayers([]);
+      return;
+    }
 
+    setIsLoading(true);
+    setLoadingProgress(0);
+    
+    const parseFiles = async () => {
+      const newLayers: LayerInfo[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const { type, color } = detectLayerType(file.name);
+        
+        try {
+          const content = await file.text();
+          const parsed = parseGerberContent(content);
+          
+          newLayers.push({
+            name: file.name,
+            type,
+            visible: layerVisibility[file.name] !== false,
+            color,
+            icon: type.includes("Copper") ? "⚡" : type.includes("Mask") ? "🎨" : type.includes("Silk") ? "✍️" : type.includes("Drill") ? "⚫" : type.includes("Outline") ? "📐" : "📄",
+            content: content.substring(0, 1000), // Store first 1000 chars for preview
+            parsed
+          });
+        } catch {
+          newLayers.push({
+            name: file.name,
+            type,
+            visible: layerVisibility[file.name] !== false,
+            color,
+            icon: type.includes("Copper") ? "⚡" : type.includes("Mask") ? "🎨" : type.includes("Silk") ? "✍️" : type.includes("Drill") ? "⚫" : type.includes("Outline") ? "📐" : "📄",
+          });
+        }
+        
+        setLoadingProgress(((i + 1) / files.length) * 100);
+      }
+      
+      setParsedLayers(newLayers);
+      setIsLoading(false);
+    };
+    
+    parseFiles();
+  }, [files, detectLayerType, layerVisibility]);
+
+  // Initialize visibility for new files
   useEffect(() => {
     const initial: Record<string, boolean> = {};
     files.forEach((f) => {
@@ -165,25 +299,93 @@ export function GerberPreview({
     },
     { 
       name: "Drill File", 
-      status: detectedLayers.some(l => l.type === "Drill"), 
-      message: detectedLayers.some(l => l.type === "Drill") ? "✓ Found" : "⚠ Missing",
+      status: parsedLayers.some(l => l.type === "Drill"), 
+      message: parsedLayers.some(l => l.type === "Drill") ? "✓ Found" : "⚠ Missing",
       critical: true
     },
     { 
       name: "Board Outline", 
-      status: detectedLayers.some(l => l.type === "Board Outline"), 
-      message: detectedLayers.some(l => l.type === "Board Outline") ? "✓ Found" : "Optional",
+      status: parsedLayers.some(l => l.type === "Board Outline"), 
+      message: parsedLayers.some(l => l.type === "Board Outline") ? "✓ Found" : "Optional",
       critical: false
     },
     { 
       name: "Copper Layers", 
-      status: detectedLayers.some(l => l.type.includes("Copper")), 
-      message: detectedLayers.filter(l => l.type.includes("Copper")).length + " detected",
+      status: parsedLayers.some(l => l.type.includes("Copper")), 
+      message: parsedLayers.filter(l => l.type.includes("Copper")).length + " detected",
       critical: true
     },
-  ], [boardWidth, boardHeight, layers, files, detectedLayers]);
+  ], [boardWidth, boardHeight, layers, files.length, parsedLayers]);
 
   const maskColors = SOLDER_MASK_COLORS[solderMaskColor] || SOLDER_MASK_COLORS["Green"];
+
+  // Calculate combined bounds from all parsed layers
+  const combinedBounds = useMemo(() => {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    
+    parsedLayers.forEach(layer => {
+      if (layer.parsed && layerVisibility[layer.name] !== false) {
+        minX = Math.min(minX, layer.parsed.bounds.minX);
+        maxX = Math.max(maxX, layer.parsed.bounds.maxX);
+        minY = Math.min(minY, layer.parsed.bounds.minY);
+        maxY = Math.max(maxY, layer.parsed.bounds.maxY);
+      }
+    });
+    
+    if (minX === Infinity) {
+      return { minX: 0, maxX: boardWidth, minY: 0, maxY: boardHeight };
+    }
+    
+    return { minX, maxX, minY, maxY };
+  }, [parsedLayers, layerVisibility, boardWidth, boardHeight]);
+
+  // Render parsed Gerber data as SVG paths
+  const renderGerberLayer = (layer: LayerInfo, index: number) => {
+    if (!layer.parsed || layerVisibility[layer.name] === false) return null;
+    
+    const { commands, bounds } = layer.parsed;
+    const width = bounds.maxX - bounds.minX || boardWidth;
+    const height = bounds.maxY - bounds.minY || boardHeight;
+    const scale = 180 / Math.max(width, height);
+    
+    const paths: JSX.Element[] = [];
+    
+    commands.forEach((cmd, cmdIndex) => {
+      const x = (cmd.x - bounds.minX) * scale;
+      const y = 180 - (cmd.y - bounds.minY) * scale; // Flip Y axis
+      
+      if (cmd.type === 'flash') {
+        paths.push(
+          <circle
+            key={`${index}-${cmdIndex}`}
+            cx={x}
+            cy={y}
+            r={2}
+            fill={layer.color}
+            opacity={0.8}
+          />
+        );
+      } else if (cmd.type === 'draw' && cmd.x2 !== undefined && cmd.y2 !== undefined) {
+        const x2 = (cmd.x2 - bounds.minX) * scale;
+        const y2 = 180 - (cmd.y2 - bounds.minY) * scale;
+        paths.push(
+          <line
+            key={`${index}-${cmdIndex}`}
+            x1={x}
+            y1={y}
+            x2={x2}
+            y2={y2}
+            stroke={layer.color}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            opacity={0.8}
+          />
+        );
+      }
+    });
+    
+    return <g key={`layer-${index}`}>{paths}</g>;
+  };
 
   if (files.length === 0) {
     return (
@@ -210,6 +412,12 @@ export function GerberPreview({
               <Layers className="w-4 h-4 text-accent" />
             </div>
             PCB Preview
+            {isLoading && (
+              <Badge variant="secondary" className="text-xs animate-pulse">
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Loading...
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}>
@@ -224,10 +432,13 @@ export function GerberPreview({
             </Button>
           </div>
         </div>
+        {isLoading && (
+          <Progress value={loadingProgress} className="h-1 mt-2" />
+        )}
       </CardHeader>
       <CardContent className="p-0">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 rounded-none border-b h-10">
+          <TabsList className="grid w-full grid-cols-4 rounded-none border-b h-10">
             <TabsTrigger value="preview" className="text-xs gap-1">
               <Grid3X3 className="w-3 h-3" />
               Preview
@@ -235,6 +446,10 @@ export function GerberPreview({
             <TabsTrigger value="layers" className="text-xs gap-1">
               <Layers className="w-3 h-3" />
               Layers ({files.length})
+            </TabsTrigger>
+            <TabsTrigger value="code" className="text-xs gap-1">
+              <FileCode className="w-3 h-3" />
+              Code
             </TabsTrigger>
             <TabsTrigger value="drc" className="text-xs gap-1">
               <CheckCircle2 className="w-3 h-3" />
@@ -256,62 +471,52 @@ export function GerberPreview({
                 </svg>
               </div>
               
-              {/* PCB Preview */}
+              {/* PCB Preview from actual file data */}
               <div 
                 className="absolute inset-0 flex items-center justify-center transition-transform duration-300"
                 style={{ transform: `scale(${zoom}) rotate(${rotation}deg)` }}
               >
                 <div 
-                  className="relative rounded-sm shadow-2xl"
+                  className="relative rounded-sm shadow-2xl overflow-hidden"
                   style={{
-                    width: `${Math.min(180, Math.max(80, boardWidth * 0.8))}px`,
-                    height: `${Math.min(180, Math.max(80, boardHeight * 0.8))}px`,
+                    width: `${Math.min(200, Math.max(80, boardWidth * 0.8))}px`,
+                    height: `${Math.min(200, Math.max(80, boardHeight * 0.8))}px`,
                     backgroundColor: maskColors.bg,
                     border: `3px solid ${maskColors.border}`,
                   }}
                 >
-                  {/* PCB Surface Pattern */}
-                  <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.7 }}>
+                  {/* SVG canvas for rendering parsed Gerber data */}
+                  <svg 
+                    className="absolute inset-0 w-full h-full" 
+                    viewBox={`0 0 180 180`}
+                    preserveAspectRatio="xMidYMid meet"
+                  >
+                    {/* Background pattern */}
                     <defs>
-                      <pattern id="pcb-grid" width="8" height="8" patternUnits="userSpaceOnUse">
+                      <pattern id="pcb-grid-dynamic" width="8" height="8" patternUnits="userSpaceOnUse">
                         <path d="M 8 0 L 0 0 0 8" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5"/>
                       </pattern>
                     </defs>
-                    <rect width="100%" height="100%" fill="url(#pcb-grid)" />
+                    <rect width="100%" height="100%" fill="url(#pcb-grid-dynamic)" />
                     
-                    {/* Copper traces */}
-                    <g stroke="#d4a03a" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M 15% 25% L 40% 25% L 40% 50% L 85% 50%" strokeWidth="2.5"/>
-                      <path d="M 25% 15% L 25% 45% L 60% 45% L 60% 85%" strokeWidth="2"/>
-                      <path d="M 70% 20% L 70% 35% L 50% 35%" strokeWidth="1.5"/>
-                      <path d="M 35% 70% L 55% 70% L 55% 55%" strokeWidth="2"/>
-                    </g>
+                    {/* Render actual Gerber layers */}
+                    {parsedLayers.map((layer, index) => renderGerberLayer(layer, index))}
                     
-                    {/* Via holes */}
-                    <g>
-                      <circle cx="40%" cy="50%" r="4" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
-                      <circle cx="25%" cy="45%" r="3" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
-                      <circle cx="60%" cy="45%" r="3" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
-                      <circle cx="55%" cy="55%" r="3" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
-                    </g>
+                    {/* Fallback visualization if no parsed data */}
+                    {parsedLayers.every(l => !l.parsed) && (
+                      <g stroke="#d4a03a" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.7">
+                        <path d="M 15% 25% L 40% 25% L 40% 50% L 85% 50%" strokeWidth="2.5"/>
+                        <path d="M 25% 15% L 25% 45% L 60% 45% L 60% 85%" strokeWidth="2"/>
+                        <path d="M 70% 20% L 70% 35% L 50% 35%" strokeWidth="1.5"/>
+                        <path d="M 35% 70% L 55% 70% L 55% 55%" strokeWidth="2"/>
+                        <circle cx="40%" cy="50%" r="4" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
+                        <circle cx="25%" cy="45%" r="3" fill="#d4a03a" stroke="#1a1a1a" strokeWidth="1"/>
+                        <rect x="10%" y="20%" width="10%" height="10%" rx="1" fill="#d4a03a"/>
+                        <rect x="80%" y="45%" width="10%" height="10%" rx="1" fill="#d4a03a"/>
+                      </g>
+                    )}
                     
-                    {/* Component pads */}
-                    <g fill="#d4a03a">
-                      <rect x="10%" y="20%" width="10%" height="10%" rx="1"/>
-                      <rect x="80%" y="45%" width="10%" height="10%" rx="1"/>
-                      <rect x="30%" y="65%" width="15%" height="8%" rx="1"/>
-                      <rect x="65%" y="75%" width="12%" height="12%" rx="1"/>
-                    </g>
-                    
-                    {/* IC footprint */}
-                    <g fill="#d4a03a" transform="translate(55, 20)">
-                      <rect x="0" y="0" width="20%" height="3" rx="0.5"/>
-                      <rect x="0" y="5" width="20%" height="3" rx="0.5"/>
-                      <rect x="0" y="10" width="20%" height="3" rx="0.5"/>
-                      <rect x="0" y="15" width="20%" height="3" rx="0.5"/>
-                    </g>
-                    
-                    {/* Silkscreen text simulation */}
+                    {/* Silkscreen text */}
                     <text x="50%" y="92%" textAnchor="middle" fill="#ffffff" fontSize="6" fontFamily="monospace" opacity="0.8">
                       BharatPCBs
                     </text>
@@ -334,6 +539,13 @@ export function GerberPreview({
                 </Badge>
               </div>
               
+              {/* File count */}
+              <div className="absolute bottom-3 left-3">
+                <Badge variant="secondary" className="text-xs">
+                  {parsedLayers.filter(l => l.parsed).length} parsed / {files.length} files
+                </Badge>
+              </div>
+              
               {/* Expand button */}
               <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-7 w-7 bg-background/50 hover:bg-background/80">
                 <Maximize2 className="w-3 h-3" />
@@ -344,7 +556,7 @@ export function GerberPreview({
           <TabsContent value="layers" className="m-0">
             <ScrollArea className="h-[280px]">
               <div className="p-3 space-y-2">
-                {detectedLayers.map((layer) => (
+                {parsedLayers.map((layer) => (
                   <div
                     key={layer.name}
                     className={cn(
@@ -355,13 +567,20 @@ export function GerberPreview({
                     )}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div 
-                      className="w-4 h-4 rounded-full flex-shrink-0 border-2"
-                      style={{ backgroundColor: layer.color, borderColor: layer.color }}
-                    />
+                      <div 
+                        className="w-4 h-4 rounded-full flex-shrink-0 border-2"
+                        style={{ backgroundColor: layer.color, borderColor: layer.color }}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{layer.name}</p>
-                        <p className="text-xs text-muted-foreground">{layer.type}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">{layer.type}</p>
+                          {layer.parsed && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {layer.parsed.commands.length} elements
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -376,6 +595,27 @@ export function GerberPreview({
                         <EyeOff className="w-4 h-4 text-muted-foreground" />
                       )}
                     </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="code" className="m-0">
+            <ScrollArea className="h-[280px]">
+              <div className="p-3 space-y-3">
+                {parsedLayers.map((layer) => (
+                  <div key={layer.name} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: layer.color }}
+                      />
+                      <p className="text-xs font-medium">{layer.name}</p>
+                    </div>
+                    <pre className="text-[10px] bg-muted/50 p-2 rounded overflow-x-auto max-h-20 text-muted-foreground font-mono">
+                      {layer.content || "Unable to read file contents"}
+                    </pre>
                   </div>
                 ))}
               </div>
