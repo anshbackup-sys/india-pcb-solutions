@@ -80,9 +80,11 @@ export function AdminQuoteManagement() {
   const fetchQuotes = async () => {
     setLoading(true);
     try {
-      const statusValues = statusFilter === "all" 
-        ? ["quote_requested", "quote_sent", "quote_approved"] as const
-        : [statusFilter] as const;
+      type OrderStatus = "quote_requested" | "quote_sent" | "quote_approved" | "in_fabrication" | "in_assembly" | "testing" | "dispatched" | "delivered" | "cancelled";
+      
+      const statusValues: OrderStatus[] = statusFilter === "all" 
+        ? ["quote_requested", "quote_sent", "quote_approved"]
+        : [statusFilter as OrderStatus];
       
       let query = supabase
         .from("orders")

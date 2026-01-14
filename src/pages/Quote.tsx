@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Zap,
   Clock,
-  Award
+  Award,
+  Eye
 } from "lucide-react";
 
 export default function Quote() {
@@ -92,7 +93,6 @@ export default function Quote() {
       const quantity = parseInt(config.quantity) || 10;
       const layers = parseInt(config.layers) || 2;
 
-      // Guest users can't create orders - redirect to auth
       if (!user) {
         toast({
           title: "Account required",
@@ -102,7 +102,6 @@ export default function Quote() {
         return;
       }
 
-      // Generate a temporary order number - the database trigger will replace it
       const tempOrderNumber = `BPCB-${Date.now()}`;
       
       const { data: order, error: orderError } = await supabase
@@ -192,7 +191,7 @@ export default function Quote() {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary via-primary/95 to-primary/90 py-12 lg:py-16 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-primary via-primary/95 to-primary/90 py-8 lg:py-12 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             <pattern id="circuit-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -204,32 +203,31 @@ export default function Quote() {
         </div>
         <div className="container-wide relative">
           <div className="text-center max-w-3xl mx-auto">
-            <Badge className="mb-4 bg-accent/20 text-accent-foreground border-accent/30">
+            <Badge className="mb-3 bg-accent/20 text-accent-foreground border-accent/30">
               <CircuitBoard className="w-3 h-3 mr-1" />
               Industry-Grade PCB Manufacturing
             </Badge>
-            <h1 className="text-3xl lg:text-5xl font-bold text-primary-foreground mb-4">
+            <h1 className="text-2xl lg:text-4xl font-bold text-primary-foreground mb-3">
               Get Your PCB Quote
             </h1>
-            <p className="text-lg text-primary-foreground/80">
-              Upload your Gerber files, configure specifications, and get instant price estimates. 
-              JLCPCB-level options with Made-in-India quality.
+            <p className="text-base text-primary-foreground/80">
+              Upload Gerber files, configure specs, get instant estimates.
             </p>
-            <div className="flex flex-wrap justify-center gap-6 mt-8">
+            <div className="flex flex-wrap justify-center gap-4 mt-6">
               <div className="flex items-center gap-2 text-primary-foreground/90">
-                <CheckCircle2 className="w-5 h-5 text-accent" />
-                <span className="text-sm">50+ Configuration Options</span>
+                <CheckCircle2 className="w-4 h-4 text-accent" />
+                <span className="text-sm">50+ Options</span>
               </div>
               <div className="flex items-center gap-2 text-primary-foreground/90">
-                <Zap className="w-5 h-5 text-accent" />
+                <Zap className="w-4 h-4 text-accent" />
                 <span className="text-sm">Real-Time Pricing</span>
               </div>
               <div className="flex items-center gap-2 text-primary-foreground/90">
-                <Clock className="w-5 h-5 text-accent" />
-                <span className="text-sm">24-Hour Turnaround</span>
+                <Clock className="w-4 h-4 text-accent" />
+                <span className="text-sm">24-Hour Quote</span>
               </div>
               <div className="flex items-center gap-2 text-primary-foreground/90">
-                <Award className="w-5 h-5 text-accent" />
+                <Award className="w-4 h-4 text-accent" />
                 <span className="text-sm">IPC Class 2/3</span>
               </div>
             </div>
@@ -237,23 +235,23 @@ export default function Quote() {
         </div>
       </section>
 
-      {/* Main Quote Form */}
-      <section className="py-8 lg:py-12 bg-gradient-to-b from-muted/50 to-background">
+      {/* Main Quote Form - Two Column Layout */}
+      <section className="py-6 lg:py-8 bg-gradient-to-b from-muted/50 to-background">
         <div className="container-wide">
-          <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
-            {/* Left Column - File Upload & Preview */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* File Upload */}
+          <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
+            {/* Left Column - Upload, Preview & Contact */}
+            <div className="space-y-6">
+              {/* File Upload Card */}
               <Card className="border-2 border-dashed border-accent/30 hover:border-accent/50 transition-colors">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <div className="p-2 bg-accent/10 rounded-lg">
                       <Upload className="w-5 h-5 text-accent" />
                     </div>
-                    Upload Files
+                    Upload Gerber Files
                   </CardTitle>
                   <CardDescription>
-                    Gerber, ODB++, or Eagle files
+                    Gerber, ODB++, Eagle, KiCad files (ZIP, RAR, 7z)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -261,14 +259,34 @@ export default function Quote() {
                 </CardContent>
               </Card>
 
-              {/* Gerber Preview */}
-              <GerberPreview 
-                files={files}
-                boardWidth={parseFloat(pcbConfig.boardWidth || "100")}
-                boardHeight={parseFloat(pcbConfig.boardHeight || "100")}
-                layers={parseInt(pcbConfig.layers || "2")}
-                solderMaskColor={pcbConfig.solderMask}
-              />
+              {/* Gerber Preview Card */}
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-3 border-b bg-muted/30">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Eye className="w-5 h-5 text-primary" />
+                    </div>
+                    Real-Time PCB Preview
+                  </CardTitle>
+                  <CardDescription>
+                    Live visualization from your uploaded files
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <GerberPreview 
+                    files={files}
+                    boardWidth={parseFloat(pcbConfig.boardWidth || "100")}
+                    boardHeight={parseFloat(pcbConfig.boardHeight || "100")}
+                    layers={parseInt(pcbConfig.layers || "2")}
+                    solderMaskColor={pcbConfig.solderMask}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Price Calculator - Sticky on Desktop */}
+              <div className="lg:sticky lg:top-4">
+                <PCBPriceCalculator config={pcbConfig} />
+              </div>
 
               {/* Contact Info for Guests */}
               {!user && (
@@ -282,7 +300,7 @@ export default function Quote() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name *</Label>
                         <Input
@@ -293,7 +311,7 @@ export default function Quote() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="email">Email Address *</Label>
+                        <Label htmlFor="email">Email *</Label>
                         <Input
                           id="email"
                           type="email"
@@ -303,7 +321,7 @@ export default function Quote() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
+                        <Label htmlFor="phone">Phone</Label>
                         <Input
                           id="phone"
                           value={contactInfo.phone}
@@ -312,7 +330,7 @@ export default function Quote() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="company">Company Name</Label>
+                        <Label htmlFor="company">Company</Label>
                         <Input
                           id="company"
                           value={contactInfo.company}
@@ -335,15 +353,7 @@ export default function Quote() {
 
               {/* NDA Agreement */}
               <Card className="border-success/30 bg-success/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <div className="p-2 bg-success/10 rounded-lg">
-                      <Shield className="w-5 h-5 text-success" />
-                    </div>
-                    Data Protection
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+                <CardContent className="pt-4">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id="nda"
@@ -351,19 +361,25 @@ export default function Quote() {
                       onCheckedChange={(checked) => setAcceptNDA(checked === true)}
                       className="mt-1"
                     />
-                    <label htmlFor="nda" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
-                      I agree to the{" "}
-                      <a href="/privacy" className="text-accent font-medium hover:underline">
-                        NDA & Privacy Agreement
-                      </a>. BharatPCBs guarantees complete confidentiality of all uploaded files and design data under strict NDA.
-                    </label>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield className="w-4 h-4 text-success" />
+                        <span className="font-medium text-sm">NDA & Data Protection</span>
+                      </div>
+                      <label htmlFor="nda" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
+                        I agree to the{" "}
+                        <a href="/privacy" className="text-accent font-medium hover:underline">
+                          Privacy Agreement
+                        </a>. Complete confidentiality guaranteed.
+                      </label>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Middle Column - PCB Configuration */}
-            <div className="lg:col-span-6">
+            {/* Right Column - PCB Configuration */}
+            <div className="space-y-6">
               <Card className="shadow-lg border-2">
                 <CardHeader className="border-b bg-muted/30">
                   <div className="flex items-center justify-between">
@@ -387,13 +403,15 @@ export default function Quote() {
                     onChange={handleConfigChange}
                     isSubmitting={isSubmitting} 
                   />
+                  
+                  {/* Submit Button */}
                   <div className="mt-6 pt-6 border-t">
                     <Button
                       type="submit"
                       form="pcb-config-form"
-                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg shadow-accent/25"
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg shadow-accent/25 h-12 text-lg"
                       size="lg"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || files.length === 0 || !acceptNDA}
                     >
                       {isSubmitting ? (
                         <>
@@ -407,53 +425,53 @@ export default function Quote() {
                         </>
                       )}
                     </Button>
+                    {(files.length === 0 || !acceptNDA) && (
+                      <p className="text-xs text-destructive text-center mt-2">
+                        {files.length === 0 ? "Upload files to continue" : "Accept NDA to continue"}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground text-center mt-3">
-                      Our engineers will review your files and send a detailed quote within 24 hours
+                      Our engineers will review and send a quote within 24 hours
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Right Column - Price Calculator */}
-            <div className="lg:col-span-3">
-              <PCBPriceCalculator config={pcbConfig} />
             </div>
           </div>
         </div>
       </section>
 
       {/* Trust Section */}
-      <section className="py-12 bg-muted/30 border-t">
+      <section className="py-8 bg-muted/30 border-t">
         <div className="container-wide">
-          <div className="grid md:grid-cols-4 gap-6 text-center">
-            <div className="p-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-accent/10 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-accent" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="p-4">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-accent/10 flex items-center justify-center">
+                <Shield className="w-5 h-5 text-accent" />
               </div>
-              <h3 className="font-semibold mb-1">Secure & Confidential</h3>
-              <p className="text-sm text-muted-foreground">Your designs are protected under strict NDA</p>
+              <h3 className="font-semibold text-sm mb-1">Secure</h3>
+              <p className="text-xs text-muted-foreground">NDA Protected</p>
             </div>
-            <div className="p-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
-                <Award className="w-6 h-6 text-primary" />
+            <div className="p-4">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-accent/10 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-accent" />
               </div>
-              <h3 className="font-semibold mb-1">IPC Certified</h3>
-              <p className="text-sm text-muted-foreground">Class 2 & Class 3 quality standards</p>
+              <h3 className="font-semibold text-sm mb-1">Fast</h3>
+              <p className="text-xs text-muted-foreground">24hr Turnaround</p>
             </div>
-            <div className="p-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-success/10 flex items-center justify-center">
-                <Clock className="w-6 h-6 text-success" />
+            <div className="p-4">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-accent/10 flex items-center justify-center">
+                <Award className="w-5 h-5 text-accent" />
               </div>
-              <h3 className="font-semibold mb-1">Fast Turnaround</h3>
-              <p className="text-sm text-muted-foreground">From 24 hours to standard 10-12 days</p>
+              <h3 className="font-semibold text-sm mb-1">Quality</h3>
+              <p className="text-xs text-muted-foreground">IPC Certified</p>
             </div>
-            <div className="p-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-warning/10 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-warning" />
+            <div className="p-4">
+              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-accent/10 flex items-center justify-center">
+                <span className="text-lg">🇮🇳</span>
               </div>
-              <h3 className="font-semibold mb-1">Made in India</h3>
-              <p className="text-sm text-muted-foreground">Supporting local manufacturing excellence</p>
+              <h3 className="font-semibold text-sm mb-1">Made in India</h3>
+              <p className="text-xs text-muted-foreground">Local Support</p>
             </div>
           </div>
         </div>
