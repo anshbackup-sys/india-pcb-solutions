@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           cart_id: string
@@ -429,6 +456,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      contact_inquiries: {
+        Row: {
+          admin_notes: string | null
+          assigned_to: string | null
+          company_name: string | null
+          created_at: string
+          email: string
+          id: string
+          inquiry_type: string
+          message: string
+          name: string
+          phone: string | null
+          replied_at: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          assigned_to?: string | null
+          company_name?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          inquiry_type?: string
+          message: string
+          name: string
+          phone?: string | null
+          replied_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          assigned_to?: string | null
+          company_name?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          inquiry_type?: string
+          message?: string
+          name?: string
+          phone?: string | null
+          replied_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       orders: {
         Row: {
